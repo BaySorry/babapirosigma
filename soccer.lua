@@ -11,77 +11,100 @@
 
 
 
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ekran"
-screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+local player = game.Players.LocalPlayer
+local rs = game:GetService("RunService")
+local uis = game:GetService("UserInputService")
 
-local frame = Instance.new("Frame")
-frame.Name = "ekranframe"
-frame.Position = UDim2.new(0.021, 0, 0.163, 0)
-frame.Size = UDim2.new(0, 57, 0, 54)
-frame.Parent = screenGui
+player.CharacterAdded:Connect(function()
+	local old = player:WaitForChild("PlayerGui"):FindFirstChild("TeleportBallGUI")
+	if old then old:Destroy() end
+end)
 
-local textButton = Instance.new("TextButton")
-textButton.Name = "TextButton"
-textButton.Size = UDim2.new(1, 0, 1, 0)
-textButton.Text = "Teleport Ball"
-textButton.Parent = frame
+task.wait(1)
 
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local workspace = game:GetService("Workspace")
+local gui = Instance.new("ScreenGui")
+gui.Name = "TeleportBallGUI"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
 
-local isTeleporting = false
+local btn = Instance.new("TextButton")
+btn.Size = UDim2.new(0, 150, 0, 50)
+btn.Position = UDim2.new(0.05, 0, 0.8, 0)
+btn.Text = "TeleportBall OFF"
+btn.Parent = gui
 
-local function getCharacter()
-    if player.Character then
-        return player.Character
-    else
-        player.CharacterAdded:Wait()
-        return player.Character
-    end
+local toggled = false
+local loopConn = nil
+local ball
+
+local function findBall()
+	local ff = workspace:FindFirstChild("FootballField")
+	if ff then
+		return ff:FindFirstChild("SoccerBall")
+	end
 end
 
-local function getBall()
-    local footballField = workspace:FindFirstChild("FootballField")
-    if footballField then
-        return footballField:FindFirstChild("SoccerBall")
-    else
-        warn("FootballField bulunamadı.")
-        return nil
-    end
+local function toggle()
+	ball = findBall()
+	if not ball then
+		warn("SoccerBall bulunamadı")
+		return
+	end
+
+	toggled = not toggled
+
+	if toggled then
+		btn.Text = "TeleportBall ON"
+
+		loopConn = rs.RenderStepped:Connect(function()
+			local char = player.Character
+			if not char then return end
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			if not hrp then return end
+			ball.CFrame = hrp.CFrame * CFrame.new(0,0,-3)
+		end)
+
+	else
+		btn.Text = "TeleportBall OFF"
+		if loopConn then loopConn:Disconnect() loopConn = nil end
+	end
 end
 
-local function teleportBall()
-    local character = getCharacter()
-    local ball = getBall()
+btn.MouseButton1Click:Connect(toggle)
 
-    if character and ball then
-        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-        if humanoidRootPart then
-            while isTeleporting do
-                local targetPosition = humanoidRootPart.CFrame * CFrame.new(0, 0, -5)
-                ball.CFrame = targetPosition
-                wait(0.1)
-            end
-        else
-            warn("HumanoidRootPart not found.")
-        end
-    else
-        if not ball then
-            warn("ball not found.")
-        end
-        if not character then
-            warn("character not found.")
-        end
-    end
-end
+uis.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if input.KeyCode == Enum.KeyCode.V then
+		toggle()
+	end
+end)
 
-textButton.MouseButton1Click:Connect(function()
-    if not isTeleporting then
-        isTeleporting = true
-        teleportBall()
-    else
-        isTeleporting = false
-    end
+task.spawn(function()
+	while true do
+		task.wait(0.2)
+		ball = findBall()
+		if ball and not ball:FindFirstChild("Delirium") then
+			local s = Instance.new("Script")
+			s.Name = "Delirium"
+			s.Parent = ball
+			s.Source = [[
+				local ball = script.Parent
+				ball.Touched:Connect(function(hit)
+					local hum = hit.Parent:FindFirstChild("Humanoid")
+					if hum then
+						for i = 1,15 do
+							ball.CFrame = ball.CFrame * CFrame.Angles(
+								math.random(), math.random(), math.random()
+							) + Vector3.new(
+								math.random(-20,20),
+								math.random(5,25),
+								math.random(-20,20)
+							)
+							task.wait(0.05)
+						end
+					end
+				end)
+			]]
+		end
+	end
 end)
